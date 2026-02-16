@@ -1,0 +1,2003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>BINGO – Multiplayer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg: #0a1628;
+    --card-bg: #131f38;
+    --panel: #172240;
+    --gold: #f5c842;
+    --teal: #22d1b5;
+    --pink: #ff5e8a;
+    --blue: #3b82f6;
+    --cell-bg: #1e2f54;
+    --cell-marked: #22d1b5;
+    --cell-free: #f5c842;
+    --text: #e8ecf4;
+    --muted: #6b7fa3;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --radius: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Nunito', sans-serif;
+}
+button {
+    font-family: 'Fredoka', sans-serif;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: transform 0.1s, opacity 0.2s;
+}
+button:active { transform: scale(0.96); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+input, textarea {
+    font-family: 'Nunito', sans-serif;
+    border: 2px solid #2a3a5c;
+    border-radius: 8px;
+    background: var(--cell-bg);
+    color: var(--text);
+    padding: 10px 14px;
+    font-size: 15px;
+    outline: none;
+    width: 100%;
+}
+input:focus { border-color: var(--teal); }
+
+/* ========== SCREENS ========== */
+.screen { display: none; height: 100%; }
+.screen.active { display: flex; flex-direction: column; }
+
+/* ========== LOBBY ========== */
+#lobby {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+    gap: 12px;
+    background: radial-gradient(ellipse at 50% 30%, #162240 0%, #0a1628 70%);
+}
+.logo {
+    font-family: 'Fredoka', sans-serif;
+    font-size: clamp(48px, 12vw, 80px);
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--gold), var(--pink), var(--teal));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 6px;
+    text-shadow: none;
+    filter: drop-shadow(0 4px 12px rgba(245,200,66,0.3));
+}
+.logo-sub {
+    font-size: clamp(14px, 3vw, 18px);
+    color: var(--muted);
+    margin-bottom: 16px;
+}
+.lobby-section {
+    background: var(--panel);
+    border-radius: 16px;
+    padding: 24px;
+    width: min(400px, 90vw);
+    border: 1px solid #2a3a5c;
+}
+.lobby-section h2 {
+    font-family: 'Fredoka', sans-serif;
+    color: var(--gold);
+    margin-bottom: 12px;
+    font-size: 20px;
+}
+.lobby-section p { color: var(--muted); font-size: 14px; margin-bottom: 10px; }
+.btn-primary {
+    background: linear-gradient(135deg, var(--teal), #1aab96);
+    color: #fff;
+    padding: 12px 28px;
+    font-size: 16px;
+    width: 100%;
+    margin-top: 8px;
+}
+.btn-gold {
+    background: linear-gradient(135deg, var(--gold), #d4a520);
+    color: #0a1628;
+    padding: 12px 28px;
+    font-size: 16px;
+    width: 100%;
+    margin-top: 8px;
+}
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 13px;
+}
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-muted { background: #2a3a5c; color: var(--text); }
+.room-code-display {
+    font-family: 'Fredoka', sans-serif;
+    font-size: clamp(32px, 8vw, 52px);
+    letter-spacing: 8px;
+    color: var(--teal);
+    background: var(--bg);
+    padding: 12px 24px;
+    border-radius: var(--radius);
+    border: 2px dashed var(--teal);
+    user-select: all;
+    margin: 12px 0;
+    display: inline-block;
+}
+.player-count-badge {
+    display: inline-block;
+    background: var(--cell-bg);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    color: var(--teal);
+    margin: 8px 0;
+}
+.lobby-player-list {
+    max-height: 150px;
+    overflow-y: auto;
+    text-align: left;
+    margin: 8px 0;
+    font-size: 14px;
+}
+.lobby-player-list div {
+    padding: 4px 8px;
+    border-radius: 6px;
+    margin: 2px 0;
+    background: var(--cell-bg);
+}
+.status-text { font-size: 14px; margin: 8px 0; }
+.status-text.error { color: var(--danger); }
+.status-text.ok { color: var(--success); }
+.status-text.waiting { color: var(--gold); }
+
+/* ========== ADMIN CONFIG ========== */
+.config-section {
+    background: var(--cell-bg);
+    border-radius: 10px;
+    padding: 14px;
+    margin: 8px 0;
+}
+.config-section label {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 4px;
+}
+.config-section select, .config-section input[type="number"] {
+    width: 100%;
+    padding: 8px;
+    font-size: 15px;
+}
+.pattern-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    margin: 8px 0;
+    max-width: 200px;
+}
+.pattern-cell {
+    aspect-ratio: 1;
+    border-radius: 6px;
+    background: var(--cell-bg);
+    border: 2px solid #2a3a5c;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: var(--muted);
+    transition: all 0.15s;
+}
+.pattern-cell.active {
+    background: var(--teal);
+    border-color: var(--teal);
+    color: #fff;
+}
+.pattern-cell.free {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #0a1628;
+    font-weight: 700;
+}
+.pattern-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0;
+}
+.pattern-presets button {
+    padding: 5px 10px;
+    font-size: 12px;
+    background: #2a3a5c;
+    color: var(--text);
+    border-radius: 6px;
+}
+.pattern-presets button:hover { background: #3a4a6c; }
+
+/* ========== GAME SCREEN ========== */
+#game {
+    overflow: hidden;
+}
+.game-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--panel);
+    border-bottom: 1px solid #2a3a5c;
+    flex-shrink: 0;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.game-header .title {
+    font-family: 'Fredoka', sans-serif;
+    font-size: 20px;
+    color: var(--gold);
+    letter-spacing: 3px;
+}
+.header-info {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 13px;
+    color: var(--muted);
+    flex-wrap: wrap;
+}
+.header-badge {
+    background: var(--cell-bg);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+}
+.game-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+.game-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 8px;
+    gap: 8px;
+}
+.game-sidebar {
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid #2a3a5c;
+    background: var(--panel);
+    flex-shrink: 0;
+}
+
+/* ========== CALLED NUMBERS STRIP ========== */
+.called-strip {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    flex-shrink: 0;
+}
+.called-strip-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+}
+.called-numbers {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    max-height: 60px;
+    overflow-y: auto;
+}
+.called-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.called-num.b { background: #3b82f6; }
+.called-num.i { background: #ef4444; }
+.called-num.n { background: #f5c842; color: #0a1628; }
+.called-num.g { background: #22c55e; }
+.called-num.o { background: #a855f7; }
+
+/* ========== BINGO CARDS ========== */
+.card-tabs {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.card-tab {
+    flex: 1;
+    padding: 8px;
+    text-align: center;
+    background: var(--cell-bg);
+    color: var(--muted);
+    border-radius: 8px 8px 0 0;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.card-tab.active {
+    background: var(--panel);
+    color: var(--gold);
+}
+.cards-area {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    gap: 8px;
+}
+.bingo-card {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 8px;
+    display: none;
+    flex-direction: column;
+    flex: 1;
+}
+.bingo-card.active { display: flex; }
+.card-header {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    margin-bottom: 4px;
+}
+.card-header-cell {
+    text-align: center;
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 700;
+    padding: 6px 0;
+    border-radius: 6px;
+    font-size: clamp(14px, 3vw, 20px);
+}
+.card-header-cell:nth-child(1) { background: #3b82f6; }
+.card-header-cell:nth-child(2) { background: #ef4444; }
+.card-header-cell:nth-child(3) { background: #f5c842; color: #0a1628; }
+.card-header-cell:nth-child(4) { background: #22c55e; }
+.card-header-cell:nth-child(5) { background: #a855f7; }
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    flex: 1;
+}
+.bingo-cell {
+    background: var(--cell-bg);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Fredoka', sans-serif;
+    font-size: clamp(16px, 4vw, 26px);
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    aspect-ratio: 1;
+    position: relative;
+    border: 2px solid transparent;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+.bingo-cell:hover:not(.marked):not(.free) { border-color: #3a4a6c; }
+.bingo-cell.callable { border-color: var(--teal); animation: cellPulse 1.5s infinite; }
+.bingo-cell.marked {
+    background: var(--cell-marked);
+    color: #fff;
+    border-color: var(--cell-marked);
+    transform: scale(0.95);
+}
+.bingo-cell.marked::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.5);
+}
+.bingo-cell.free {
+    background: var(--cell-free);
+    color: #0a1628;
+    font-size: clamp(9px, 2vw, 13px);
+}
+@keyframes cellPulse {
+    0%, 100% { border-color: var(--teal); }
+    50% { border-color: rgba(34,209,181,0.3); }
+}
+
+/* ========== BIG NUMBER OVERLAY ========== */
+.number-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,22,40,0.88);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+.number-overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+.big-ball {
+    width: clamp(140px, 35vw, 220px);
+    height: clamp(140px, 35vw, 220px);
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    animation: ballBounce 0.5s ease-out;
+    box-shadow: 0 0 60px rgba(245,200,66,0.4), inset 0 -8px 20px rgba(0,0,0,0.3);
+}
+.big-ball .letter {
+    font-family: 'Fredoka', sans-serif;
+    font-size: clamp(24px, 6vw, 36px);
+    font-weight: 700;
+    opacity: 0.9;
+}
+.big-ball .number {
+    font-family: 'Fredoka', sans-serif;
+    font-size: clamp(48px, 14vw, 80px);
+    font-weight: 700;
+    line-height: 1;
+}
+.big-ball.b { background: linear-gradient(145deg, #5b9df6, #2563eb); }
+.big-ball.i { background: linear-gradient(145deg, #f87171, #dc2626); }
+.big-ball.n { background: linear-gradient(145deg, #fcd34d, #d4a520); color: #0a1628; }
+.big-ball.g { background: linear-gradient(145deg, #4ade80, #16a34a); }
+.big-ball.o { background: linear-gradient(145deg, #c084fc, #7c3aed); }
+.overlay-timer {
+    margin-top: 20px;
+    font-size: 16px;
+    color: var(--muted);
+}
+.overlay-timer .bar {
+    width: 200px;
+    height: 4px;
+    background: #2a3a5c;
+    border-radius: 2px;
+    margin-top: 8px;
+    overflow: hidden;
+}
+.overlay-timer .bar-fill {
+    height: 100%;
+    background: var(--teal);
+    transition: width 1s linear;
+    border-radius: 2px;
+}
+@keyframes ballBounce {
+    0% { transform: scale(0) rotate(-20deg); }
+    60% { transform: scale(1.15) rotate(5deg); }
+    100% { transform: scale(1) rotate(0); }
+}
+
+/* ========== SIDEBAR TABS ========== */
+.sidebar-tabs {
+    display: flex;
+    border-bottom: 1px solid #2a3a5c;
+}
+.sidebar-tab {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    background: transparent;
+    border-radius: 0;
+    cursor: pointer;
+    position: relative;
+}
+.sidebar-tab.active { color: var(--teal); }
+.sidebar-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 20%;
+    right: 20%;
+    height: 2px;
+    background: var(--teal);
+    border-radius: 1px;
+}
+.sidebar-tab .notif {
+    background: var(--pink);
+    color: #fff;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 8px;
+    margin-left: 4px;
+}
+.sidebar-panel {
+    flex: 1;
+    overflow-y: auto;
+    display: none;
+    padding: 8px;
+}
+.sidebar-panel.active { display: flex; flex-direction: column; }
+
+/* ========== PLAYERS LIST ========== */
+.player-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 4px;
+    background: var(--cell-bg);
+}
+.player-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+    flex-shrink: 0;
+}
+.player-name { flex: 1; }
+.player-hand {
+    font-size: 18px;
+    animation: handWave 0.6s infinite alternate;
+}
+@keyframes handWave {
+    from { transform: rotate(-15deg); }
+    to { transform: rotate(15deg); }
+}
+.player-admin-badge {
+    font-size: 10px;
+    background: var(--gold);
+    color: #0a1628;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+}
+
+/* ========== CHAT ========== */
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-bottom: 8px;
+}
+.chat-msg {
+    font-size: 13px;
+    padding: 4px 0;
+    line-height: 1.4;
+}
+.chat-msg .sender {
+    font-weight: 700;
+    color: var(--teal);
+}
+.chat-msg .sender.admin { color: var(--gold); }
+.chat-msg.system {
+    color: var(--muted);
+    font-style: italic;
+    font-size: 12px;
+    text-align: center;
+    padding: 6px;
+    background: var(--cell-bg);
+    border-radius: 6px;
+}
+.chat-input-row {
+    display: flex;
+    gap: 4px;
+    padding-top: 8px;
+    border-top: 1px solid #2a3a5c;
+    flex-shrink: 0;
+}
+.chat-input-row input { font-size: 13px; padding: 8px 10px; }
+.chat-input-row button {
+    padding: 8px 14px;
+    background: var(--teal);
+    color: #fff;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+/* ========== BOTTOM BAR (MOBILE) ========== */
+.bottom-bar {
+    display: none;
+    gap: 4px;
+    padding: 6px 8px;
+    background: var(--panel);
+    border-top: 1px solid #2a3a5c;
+    flex-shrink: 0;
+}
+.bottom-bar button {
+    flex: 1;
+    padding: 10px;
+    font-size: 12px;
+    background: var(--cell-bg);
+    color: var(--text);
+}
+.bottom-bar button.active-accent { background: var(--teal); color: #fff; }
+
+/* ========== ADMIN CONTROLS ========== */
+.admin-bar {
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--panel);
+    border-bottom: 1px solid #2a3a5c;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.admin-bar button {
+    padding: 8px 16px;
+    font-size: 13px;
+}
+.btn-call {
+    background: linear-gradient(135deg, var(--gold), #d4a520);
+    color: #0a1628;
+    font-size: 15px;
+    padding: 10px 24px;
+}
+.btn-pause { background: var(--pink); color: #fff; }
+.btn-resume { background: var(--success); color: #fff; }
+
+/* ========== PATTERN DISPLAY (small) ========== */
+.pattern-mini {
+    display: inline-grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 2px;
+    vertical-align: middle;
+}
+.pattern-mini-cell {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: #2a3a5c;
+}
+.pattern-mini-cell.on { background: var(--teal); }
+.pattern-mini-cell.free { background: var(--gold); }
+
+/* ========== HAND RAISE BANNER ========== */
+.hand-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, var(--gold), #d4a520);
+    color: #0a1628;
+    text-align: center;
+    padding: 12px;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    z-index: 400;
+    transform: translateY(-100%);
+    transition: transform 0.3s;
+}
+.hand-banner.show { transform: translateY(0); }
+
+/* ========== WINNER OVERLAY ========== */
+.winner-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,22,40,0.92);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+.winner-overlay.show { opacity: 1; pointer-events: auto; }
+.winner-box {
+    text-align: center;
+    animation: winPop 0.5s ease-out;
+}
+.winner-box .trophy { font-size: clamp(48px, 12vw, 72px); }
+.winner-box h2 {
+    font-family: 'Fredoka', sans-serif;
+    font-size: clamp(28px, 7vw, 42px);
+    color: var(--gold);
+    margin: 12px 0;
+}
+.winner-box p { color: var(--muted); font-size: 16px; }
+@keyframes winPop {
+    0% { transform: scale(0); }
+    70% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+/* ========== PAUSE OVERLAY ========== */
+.pause-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,22,40,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 450;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+.pause-overlay.show { opacity: 1; pointer-events: auto; }
+.pause-box {
+    text-align: center;
+    font-family: 'Fredoka', sans-serif;
+    font-size: clamp(24px, 6vw, 36px);
+    color: var(--gold);
+    animation: pausePulse 2s infinite;
+}
+@keyframes pausePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ========== MOBILE SIDEBAR OVERLAY ========== */
+.mobile-sidebar {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+}
+.mobile-sidebar.show { display: flex; }
+.mobile-sidebar-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+}
+.mobile-sidebar-content {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: min(320px, 85vw);
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    z-index: 1;
+    animation: slideIn 0.2s;
+}
+@keyframes slideIn {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 768px) {
+    .game-sidebar { display: none; }
+    .bottom-bar { display: flex; }
+    .game-header .title { font-size: 16px; letter-spacing: 2px; }
+    .header-info { font-size: 11px; gap: 6px; }
+    .admin-bar { padding: 6px 8px; }
+    .admin-bar button { padding: 6px 12px; font-size: 12px; }
+    .bingo-cell { font-size: clamp(14px, 4.5vw, 22px); }
+}
+
+@media (min-width: 769px) {
+    .cards-area { flex-direction: row; }
+    .bingo-card.active { display: flex; }
+    .bingo-card { display: flex; }
+    .card-tabs { display: none; }
+}
+
+/* ========== SCROLLBAR ========== */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a3a5c; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ================= LOBBY SCREEN ================= -->
+<div id="lobby" class="screen active">
+    <div class="logo">BINGO</div>
+    <div class="logo-sub">Multiplayer • Up to 50 Players</div>
+
+    <div id="lobbyMenu" class="lobby-section">
+        <h2>Play Bingo!</h2>
+        <button class="btn-gold" onclick="showCreateRoom()">🎙️ Create Room (Admin)</button>
+        <button class="btn-primary" onclick="showJoinRoom()" style="margin-top:6px;">🎮 Join Room (Player)</button>
+    </div>
+
+    <!-- CREATE ROOM -->
+    <div id="lobbyCreate" class="lobby-section" style="display:none;">
+        <h2>🎙️ Create Room</h2>
+
+        <div class="config-section">
+            <label>Number of Rounds</label>
+            <input type="number" id="cfgRounds" value="3" min="1" max="20">
+        </div>
+
+        <div class="config-section">
+            <label>Winning Pattern (Round 1)</label>
+            <div class="pattern-presets">
+                <button onclick="setPreset('line')">Any Line</button>
+                <button onclick="setPreset('corners')">4 Corners</button>
+                <button onclick="setPreset('blackout')">Blackout</button>
+                <button onclick="setPreset('x')">X Shape</button>
+                <button onclick="setPreset('plus')">+ Plus</button>
+                <button onclick="setPreset('frame')">Frame</button>
+            </div>
+            <div class="pattern-grid" id="patternGrid"></div>
+            <p id="patternNote" style="font-size:12px;">Click cells to toggle. Pattern can be changed between rounds.</p>
+        </div>
+
+        <button class="btn-gold" onclick="createRoom()">Create Room</button>
+        <button class="btn-muted btn-sm" onclick="backToMenu()" style="margin-top:6px;width:100%;">Back</button>
+        <div id="createStatus" class="status-text"></div>
+    </div>
+
+    <!-- JOIN ROOM -->
+    <div id="lobbyJoin" class="lobby-section" style="display:none;">
+        <h2>🎮 Join Room</h2>
+        <input id="joinName" placeholder="Your name" maxlength="20" style="margin-bottom:8px;">
+        <input id="joinCode" placeholder="Room code" maxlength="8" style="text-transform:uppercase;">
+        <button class="btn-primary" onclick="joinRoom()">Join</button>
+        <button class="btn-muted btn-sm" onclick="backToMenu()" style="margin-top:6px;width:100%;">Back</button>
+        <div id="joinStatus" class="status-text"></div>
+    </div>
+
+    <!-- ADMIN WAITING ROOM -->
+    <div id="lobbyWaiting" class="lobby-section" style="display:none;">
+        <h2>🎙️ Your Room</h2>
+        <p>Share this code with players:</p>
+        <div class="room-code-display" id="roomCodeDisplay">------</div>
+        <br>
+        <button class="btn-muted btn-sm" onclick="copyCode()">📋 Copy Code</button>
+        <div class="player-count-badge" id="playerCountBadge">0 / 50 Players</div>
+        <div class="lobby-player-list" id="lobbyPlayerList"></div>
+        <button class="btn-gold" id="startGameBtn" onclick="adminStartGame()" disabled>Start Game</button>
+        <p id="waitingHint" style="font-size:12px;color:var(--muted);margin-top:6px;">Need at least 1 player to start.</p>
+    </div>
+
+    <!-- PLAYER WAITING -->
+    <div id="lobbyPlayerWait" class="lobby-section" style="display:none;">
+        <h2>🎮 Room Joined!</h2>
+        <p id="playerWaitMsg">Waiting for admin to start the game...</p>
+        <div class="player-count-badge" id="playerWaitCount">0 players</div>
+        <div class="lobby-player-list" id="playerWaitList"></div>
+    </div>
+</div>
+
+<!-- ================= GAME SCREEN ================= -->
+<div id="game" class="screen">
+    <!-- HEADER -->
+    <div class="game-header">
+        <span class="title">BINGO</span>
+        <div class="header-info">
+            <span class="header-badge" id="hdrRoom">Room: ---</span>
+            <span class="header-badge" id="hdrRound">Round 1/3</span>
+            <span class="header-badge" id="hdrPattern">Pattern: <span id="hdrPatternMini"></span></span>
+            <span class="header-badge" id="hdrPlayers">👥 0</span>
+        </div>
+    </div>
+
+    <!-- ADMIN BAR -->
+    <div class="admin-bar" id="adminBar" style="display:none;">
+        <button class="btn-call" id="callBtn" onclick="adminCallNumber()">📢 Call Number</button>
+        <button class="btn-pause" id="pauseBtn" onclick="adminTogglePause()">⏸ Pause</button>
+        <button class="btn-muted btn-sm" id="nextRoundBtn" onclick="adminNextRound()" style="display:none;">Next Round ▶</button>
+        <button class="btn-muted btn-sm" onclick="adminChangePattern()">🔧 Pattern</button>
+        <span id="adminCalledCount" style="font-size:12px;color:var(--muted);margin-left:auto;">Called: 0/75</span>
+    </div>
+
+    <!-- BODY -->
+    <div class="game-body">
+        <div class="game-main">
+            <!-- Called numbers -->
+            <div class="called-strip">
+                <div class="called-strip-label">Called Numbers</div>
+                <div class="called-numbers" id="calledNumbers"></div>
+            </div>
+
+            <!-- Card tabs (mobile) -->
+            <div class="card-tabs" id="cardTabs">
+                <div class="card-tab active" onclick="switchCard(0)">Card 1</div>
+                <div class="card-tab" onclick="switchCard(1)">Card 2</div>
+                <div class="card-tab" onclick="switchCard(2)">Card 3</div>
+            </div>
+
+            <!-- Bingo cards -->
+            <div class="cards-area" id="cardsArea"></div>
+        </div>
+
+        <!-- SIDEBAR (desktop) -->
+        <div class="game-sidebar">
+            <div class="sidebar-tabs">
+                <div class="sidebar-tab active" onclick="switchSidebar('players',this)">Players</div>
+                <div class="sidebar-tab" onclick="switchSidebar('chat',this)">Chat <span class="notif" id="chatNotif" style="display:none;">0</span></div>
+            </div>
+            <div class="sidebar-panel active" id="sidebarPlayers">
+                <div id="playersList"></div>
+            </div>
+            <div class="sidebar-panel" id="sidebarChat">
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input-row">
+                    <input id="chatInput" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat()">
+                    <button onclick="sendChat()">Send</button>
+                </div>
+            </div>
+            <div style="padding:8px;border-top:1px solid #2a3a5c;flex-shrink:0;" id="sidebarHandBtn">
+                <button onclick="raiseHand()" style="width:100%;padding:10px;font-size:14px;background:var(--gold);color:#0a1628;">✋ Raise Hand</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTTOM BAR (mobile) -->
+    <div class="bottom-bar">
+        <button onclick="raiseHand()">✋ Hand</button>
+        <button onclick="openMobileSidebar('chat')">💬 Chat</button>
+        <button onclick="openMobileSidebar('players')">👥 Players</button>
+    </div>
+</div>
+
+<!-- ================= OVERLAYS ================= -->
+<div class="number-overlay" id="numberOverlay">
+    <div class="big-ball" id="bigBall">
+        <div class="letter" id="bigLetter"></div>
+        <div class="number" id="bigNumber"></div>
+    </div>
+    <div class="overlay-timer">
+        <span id="overlayText">Mark your cards!</span>
+        <div class="bar"><div class="bar-fill" id="overlayBar"></div></div>
+    </div>
+</div>
+
+<div class="hand-banner" id="handBanner"></div>
+<div class="pause-overlay" id="pauseOverlay"><div class="pause-box">⏸ GAME PAUSED</div></div>
+
+<div class="winner-overlay" id="winnerOverlay">
+    <div class="winner-box">
+        <div class="trophy">🏆</div>
+        <h2 id="winnerName">BINGO!</h2>
+        <p id="winnerMsg">Winner of Round 1!</p>
+        <button class="btn-gold" id="winnerDismiss" onclick="dismissWinner()" style="margin-top:20px;width:auto;">Continue</button>
+    </div>
+</div>
+
+<!-- MOBILE SIDEBAR -->
+<div class="mobile-sidebar" id="mobileSidebar">
+    <div class="mobile-sidebar-backdrop" onclick="closeMobileSidebar()"></div>
+    <div class="mobile-sidebar-content">
+        <div class="sidebar-tabs">
+            <div class="sidebar-tab" id="mobTabPlayers" onclick="switchMobTab('players')">Players</div>
+            <div class="sidebar-tab" id="mobTabChat" onclick="switchMobTab('chat')">Chat</div>
+            <button style="padding:8px 14px;background:var(--danger);color:#fff;font-size:12px;border-radius:0;" onclick="closeMobileSidebar()">✕</button>
+        </div>
+        <div class="sidebar-panel" id="mobPlayers">
+            <div id="mobPlayersList"></div>
+        </div>
+        <div class="sidebar-panel" id="mobChat">
+            <div class="chat-messages" id="mobChatMessages"></div>
+            <div class="chat-input-row">
+                <input id="mobChatInput" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat('mob')">
+                <button onclick="sendChat('mob')">Send</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PATTERN CHANGE MODAL -->
+<div class="winner-overlay" id="patternModal">
+    <div style="background:var(--panel);border-radius:16px;padding:24px;width:min(360px,90vw);border:1px solid #2a3a5c;">
+        <h3 style="font-family:'Fredoka',sans-serif;color:var(--gold);margin-bottom:12px;">Change Pattern</h3>
+        <div class="pattern-presets" id="modalPresets">
+            <button onclick="setPreset('line','modal')">Line</button>
+            <button onclick="setPreset('corners','modal')">Corners</button>
+            <button onclick="setPreset('blackout','modal')">Blackout</button>
+            <button onclick="setPreset('x','modal')">X</button>
+            <button onclick="setPreset('plus','modal')">+</button>
+            <button onclick="setPreset('frame','modal')">Frame</button>
+        </div>
+        <div class="pattern-grid" id="modalPatternGrid" style="margin:12px auto;"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="btn-primary" onclick="applyPatternChange()" style="flex:1;">Apply</button>
+            <button class="btn-muted" onclick="closePatternModal()" style="flex:1;">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ============================================================
+   STATE
+   ============================================================ */
+let peer = null, connections = {}; // admin: {peerId: conn}, player: single conn
+let role = null; // "admin" or "player"
+let myName = "Admin";
+let roomCode = "";
+
+// Game config
+let config = { rounds: 3, pattern: Array(25).fill(false), anyLine: false };
+config.pattern[12] = true; // free space always in pattern by default
+
+// Game state
+let currentRound = 0;
+let calledNumbers = [];
+let isPaused = false;
+let gamePhase = "lobby"; // lobby, playing, paused, round_over, game_over
+let myCards = []; // 3 cards, each is [row][col] = number, center = 0 (FREE)
+let myMarks = [[], [], []]; // 3 arrays of marked cell indices [row*5+col]
+let players = []; // {id, name, hand}
+let chatMsgs = [];
+let chatUnread = 0;
+let activeCardTab = 0;
+let roundWinners = [];
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+function getLetterForNumber(n) {
+    if (n <= 15) return "B";
+    if (n <= 30) return "I";
+    if (n <= 45) return "N";
+    if (n <= 60) return "G";
+    return "O";
+}
+function getLetterClass(n) { return getLetterForNumber(n).toLowerCase(); }
+
+function generateCard() {
+    const ranges = [[1,15],[16,30],[31,45],[46,60],[61,75]];
+    const card = [];
+    for (let r = 0; r < 5; r++) card.push([]);
+    for (let col = 0; col < 5; col++) {
+        const [min, max] = ranges[col];
+        const pool = [];
+        for (let n = min; n <= max; n++) pool.push(n);
+        shuffle(pool);
+        for (let row = 0; row < 5; row++) {
+            card[row][col] = (row === 2 && col === 2) ? 0 : pool[row];
+        }
+    }
+    return card;
+}
+
+function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+}
+
+function generateRoomCode() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+}
+
+function renderPatternGrid(containerId, patternArr, editable) {
+    const grid = document.getElementById(containerId);
+    grid.innerHTML = "";
+    for (let i = 0; i < 25; i++) {
+        const cell = document.createElement("div");
+        cell.className = "pattern-cell" + (i === 12 ? " free active" : (patternArr[i] ? " active" : ""));
+        if (i === 12) cell.textContent = "★";
+        if (editable && i !== 12) {
+            cell.onclick = () => {
+                patternArr[i] = !patternArr[i];
+                cell.classList.toggle("active");
+            };
+        }
+        grid.appendChild(cell);
+    }
+}
+
+function renderPatternMini(container, patternArr) {
+    container.innerHTML = "";
+    if (config.anyLine) {
+        container.innerHTML = '<span style="font-size:11px;color:var(--teal);font-weight:700;">Any Line</span>';
+        return;
+    }
+    const grid = document.createElement("span");
+    grid.className = "pattern-mini";
+    for (let i = 0; i < 25; i++) {
+        const c = document.createElement("span");
+        c.className = "pattern-mini-cell" + (i === 12 ? " free" : (patternArr[i] ? " on" : ""));
+        grid.appendChild(c);
+    }
+    container.appendChild(grid);
+}
+
+const PRESETS = {
+    line: () => { // any line = just show one for preview, actual check is any
+        const p = Array(25).fill(false);
+        for (let i = 0; i < 5; i++) p[2 * 5 + i] = true; // middle row
+        return p;
+    },
+    corners: () => {
+        const p = Array(25).fill(false);
+        [0, 4, 20, 24, 12].forEach(i => p[i] = true);
+        return p;
+    },
+    blackout: () => Array(25).fill(true),
+    x: () => {
+        const p = Array(25).fill(false);
+        for (let i = 0; i < 5; i++) { p[i * 5 + i] = true; p[i * 5 + (4 - i)] = true; }
+        return p;
+    },
+    plus: () => {
+        const p = Array(25).fill(false);
+        for (let i = 0; i < 5; i++) { p[2 * 5 + i] = true; p[i * 5 + 2] = true; }
+        return p;
+    },
+    frame: () => {
+        const p = Array(25).fill(false);
+        for (let i = 0; i < 5; i++) { p[i] = true; p[20 + i] = true; p[i * 5] = true; p[i * 5 + 4] = true; }
+        return p;
+    }
+};
+
+function setPreset(name, target) {
+    const p = PRESETS[name]();
+    p[12] = true; // free always active
+    const isAnyLine = (name === 'line');
+    if (target === 'modal') {
+        modalPattern = [...p];
+        modalAnyLine = isAnyLine;
+        renderPatternGrid("modalPatternGrid", modalPattern, !isAnyLine);
+    } else {
+        config.pattern = [...p];
+        config.anyLine = isAnyLine;
+        renderPatternGrid("patternGrid", config.pattern, !isAnyLine);
+        const note = document.getElementById("patternNote");
+        if (note) note.innerHTML = isAnyLine
+            ? '<span style="color:var(--teal);font-weight:700;">✨ Any complete row, column, or diagonal wins!</span>'
+            : 'Click cells to toggle. Pattern can be changed between rounds.';
+    }
+}
+
+let modalPattern = [];
+let modalAnyLine = false;
+
+/* ============================================================
+   SCREEN MANAGEMENT
+   ============================================================ */
+function showScreen(id) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+}
+
+function showLobbySection(id) {
+    ["lobbyMenu", "lobbyCreate", "lobbyJoin", "lobbyWaiting", "lobbyPlayerWait"]
+        .forEach(s => document.getElementById(s).style.display = "none");
+    document.getElementById(id).style.display = "block";
+}
+
+function showCreateRoom() { showLobbySection("lobbyCreate"); renderPatternGrid("patternGrid", config.pattern, true); }
+function showJoinRoom() { showLobbySection("lobbyJoin"); setTimeout(() => document.getElementById("joinName").focus(), 100); }
+function backToMenu() { showLobbySection("lobbyMenu"); if (peer) { peer.destroy(); peer = null; } }
+
+/* ============================================================
+   ADMIN: CREATE ROOM
+   ============================================================ */
+function createRoom() {
+    config.rounds = Math.max(1, Math.min(20, parseInt(document.getElementById("cfgRounds").value) || 3));
+    roomCode = generateRoomCode();
+    const peerId = "bg-" + roomCode;
+
+    document.getElementById("createStatus").innerHTML = '<span class="waiting">Creating room...</span>';
+
+    peer = new Peer(peerId);
+    peer.on("open", () => {
+        role = "admin";
+        myName = "Admin";
+        document.getElementById("roomCodeDisplay").textContent = roomCode;
+        document.getElementById("createStatus").innerHTML = '';
+        showLobbySection("lobbyWaiting");
+    });
+    peer.on("connection", onPlayerConnect);
+    peer.on("error", (err) => {
+        document.getElementById("createStatus").innerHTML = '<span class="error">Error: ' + err.message + '</span>';
+    });
+}
+
+function onPlayerConnect(conn) {
+    conn.on("open", () => {
+        conn.on("data", (data) => handleAdminMessage(data, conn));
+        conn.on("close", () => onPlayerDisconnect(conn.peer));
+    });
+}
+
+function onPlayerDisconnect(peerId) {
+    const idx = players.findIndex(p => p.id === peerId);
+    if (idx !== -1) {
+        const name = players[idx].name;
+        players.splice(idx, 1);
+        delete connections[peerId];
+        broadcastPlayerList();
+        broadcastChat({ from: "System", text: name + " left the room.", system: true });
+        updateLobbyPlayerList();
+    }
+}
+
+function handleAdminMessage(data, conn) {
+    switch (data.type) {
+        case "join":
+            if (players.length >= 50) {
+                conn.send({ type: "error", msg: "Room is full (50 players max)." });
+                return;
+            }
+            const cards = [generateCard(), generateCard(), generateCard()];
+            const playerObj = { id: conn.peer, name: data.name, hand: false, cards: cards };
+            players.push(playerObj);
+            connections[conn.peer] = conn;
+
+            conn.send({
+                type: "welcome",
+                cards: cards,
+                players: players.map(p => ({ name: p.name, hand: p.hand })),
+                config: config,
+                calledNumbers: calledNumbers,
+                currentRound: currentRound,
+                gamePhase: gamePhase,
+                isPaused: isPaused,
+                roundWinners: roundWinners
+            });
+
+            broadcastPlayerList();
+            broadcastChat({ from: "System", text: data.name + " joined!", system: true });
+            updateLobbyPlayerList();
+            break;
+
+        case "mark":
+            // Player marked a number — no action needed from admin, trust client
+            break;
+
+        case "bingo":
+            verifyBingo(conn.peer, data.cardIndex, data.marks);
+            break;
+
+        case "chat":
+            const player = players.find(p => p.id === conn.peer);
+            if (player) broadcastChat({ from: player.name, text: data.text });
+            break;
+
+        case "hand_raise":
+            const raiser = players.find(p => p.id === conn.peer);
+            if (raiser) {
+                raiser.hand = true;
+                broadcastAll({ type: "hand_raise", name: raiser.name });
+                broadcastPlayerList();
+                // Auto-pause for 5 seconds
+                if (!isPaused && gamePhase === "playing") {
+                    isPaused = true;
+                    broadcastAll({ type: "pause", reason: "hand", name: raiser.name });
+                    setTimeout(() => {
+                        raiser.hand = false;
+                        broadcastPlayerList();
+                        if (isPaused) {
+                            isPaused = false;
+                            broadcastAll({ type: "resume" });
+                        }
+                    }, 5000);
+                }
+            }
+            break;
+    }
+}
+
+function verifyBingo(peerId, cardIndex, marks) {
+    const player = players.find(p => p.id === peerId);
+    if (!player || gamePhase !== "playing") return;
+
+    const card = player.cards[cardIndex];
+
+    function checkPattern(pattern) {
+        for (let i = 0; i < 25; i++) {
+            if (!pattern[i]) continue;
+            const row = Math.floor(i / 5), col = i % 5;
+            if (row === 2 && col === 2) continue; // FREE
+            const num = card[row][col];
+            if (!calledNumbers.includes(num) || !marks.includes(i)) return false;
+        }
+        return true;
+    }
+
+    let valid = false;
+
+    if (config.anyLine) {
+        // Check all rows, columns, diagonals
+        for (let r = 0; r < 5 && !valid; r++) {
+            const row = Array(25).fill(false);
+            for (let c = 0; c < 5; c++) row[r * 5 + c] = true;
+            if (checkPattern(row)) valid = true;
+        }
+        for (let c = 0; c < 5 && !valid; c++) {
+            const col = Array(25).fill(false);
+            for (let r = 0; r < 5; r++) col[r * 5 + c] = true;
+            if (checkPattern(col)) valid = true;
+        }
+        if (!valid) {
+            const d1 = Array(25).fill(false);
+            const d2 = Array(25).fill(false);
+            for (let i = 0; i < 5; i++) { d1[i * 5 + i] = true; d2[i * 5 + (4 - i)] = true; }
+            if (checkPattern(d1) || checkPattern(d2)) valid = true;
+        }
+    } else {
+        valid = checkPattern(config.pattern);
+    }
+
+    if (!valid) {
+        connections[peerId]?.send({ type: "bingo_invalid" });
+        return;
+    }
+
+    // Valid bingo!
+    roundWinners.push({ name: player.name, round: currentRound });
+    broadcastAll({ type: "winner", name: player.name, round: currentRound });
+    gamePhase = "round_over";
+}
+
+function updateLobbyPlayerList() {
+    const html = players.map(p => `<div>🟢 ${p.name}</div>`).join("");
+    document.getElementById("lobbyPlayerList").innerHTML = html;
+    document.getElementById("playerCountBadge").textContent = players.length + " / 50 Players";
+    document.getElementById("startGameBtn").disabled = players.length === 0;
+}
+
+/* ============================================================
+   ADMIN: GAME CONTROLS
+   ============================================================ */
+function adminStartGame() {
+    currentRound = 1;
+    calledNumbers = [];
+    gamePhase = "playing";
+    isPaused = false;
+
+    broadcastAll({
+        type: "game_start",
+        config: { ...config },
+        round: currentRound
+    });
+
+    showScreen("game");
+    document.getElementById("adminBar").style.display = "flex";
+    setupGameUI();
+}
+
+function adminCallNumber() {
+    if (gamePhase !== "playing" || isPaused) return;
+
+    const uncalled = [];
+    for (let n = 1; n <= 75; n++) {
+        if (!calledNumbers.includes(n)) uncalled.push(n);
+    }
+    if (uncalled.length === 0) return;
+
+    const num = uncalled[Math.floor(Math.random() * uncalled.length)];
+    calledNumbers.push(num);
+
+    broadcastAll({ type: "number_called", number: num, calledNumbers: [...calledNumbers] });
+    showCalledNumber(num);
+    renderCalledNumbers();
+    document.getElementById("adminCalledCount").textContent = "Called: " + calledNumbers.length + "/75";
+}
+
+function adminTogglePause() {
+    isPaused = !isPaused;
+    if (isPaused) {
+        broadcastAll({ type: "pause", reason: "admin" });
+        document.getElementById("pauseBtn").innerHTML = "▶ Resume";
+        document.getElementById("pauseBtn").className = "btn-resume";
+    } else {
+        broadcastAll({ type: "resume" });
+        document.getElementById("pauseBtn").innerHTML = "⏸ Pause";
+        document.getElementById("pauseBtn").className = "btn-pause";
+    }
+    document.getElementById("pauseOverlay").classList.toggle("show", isPaused);
+}
+
+function adminNextRound() {
+    currentRound++;
+    if (currentRound > config.rounds) {
+        gamePhase = "game_over";
+        broadcastAll({ type: "game_over", winners: roundWinners });
+        showGameOver();
+        return;
+    }
+    calledNumbers = [];
+    gamePhase = "playing";
+    isPaused = false;
+
+    // Regenerate cards for all players
+    players.forEach(p => {
+        p.cards = [generateCard(), generateCard(), generateCard()];
+        connections[p.id]?.send({
+            type: "new_round",
+            round: currentRound,
+            cards: p.cards,
+            pattern: config.pattern,
+            anyLine: config.anyLine
+        });
+    });
+
+    broadcastAll({ type: "round_start", round: currentRound, pattern: config.pattern, anyLine: config.anyLine });
+    document.getElementById("nextRoundBtn").style.display = "none";
+    document.getElementById("callBtn").disabled = false;
+    setupGameUI();
+}
+
+function adminChangePattern() {
+    modalPattern = [...config.pattern];
+    renderPatternGrid("modalPatternGrid", modalPattern, true);
+    document.getElementById("patternModal").classList.add("show");
+}
+function closePatternModal() { document.getElementById("patternModal").classList.remove("show"); }
+function applyPatternChange() {
+    config.pattern = [...modalPattern];
+    config.anyLine = modalAnyLine;
+    broadcastAll({ type: "pattern_change", pattern: config.pattern, anyLine: config.anyLine });
+    renderPatternMini(document.getElementById("hdrPatternMini"), config.pattern);
+    closePatternModal();
+}
+
+/* ============================================================
+   BROADCAST
+   ============================================================ */
+function broadcastAll(data) {
+    Object.values(connections).forEach(c => { try { c.send(data); } catch(e) {} });
+    // Also handle locally for admin
+    handleLocalMessage(data);
+}
+
+function broadcastPlayerList() {
+    const list = players.map(p => ({ name: p.name, hand: p.hand }));
+    broadcastAll({ type: "player_list", players: list });
+}
+
+function broadcastChat(msg) {
+    broadcastAll({ type: "chat", ...msg });
+}
+
+/* ============================================================
+   PLAYER: JOIN ROOM
+   ============================================================ */
+function joinRoom() {
+    const name = document.getElementById("joinName").value.trim();
+    const code = document.getElementById("joinCode").value.trim().toUpperCase();
+
+    if (!name) { document.getElementById("joinStatus").innerHTML = '<span class="error">Enter your name.</span>'; return; }
+    if (!code || code.length < 4) { document.getElementById("joinStatus").innerHTML = '<span class="error">Enter a valid room code.</span>'; return; }
+
+    myName = name;
+    roomCode = code;
+    role = "player";
+
+    document.getElementById("joinStatus").innerHTML = '<span class="waiting">Connecting...</span>';
+
+    peer = new Peer();
+    peer.on("open", () => {
+        const conn = peer.connect("bg-" + code, { reliable: true });
+        conn.on("open", () => {
+            connections.main = conn;
+            conn.send({ type: "join", name: name });
+            conn.on("data", handlePlayerMessage);
+            conn.on("close", () => {
+                alert("Disconnected from the room.");
+            });
+        });
+        conn.on("error", () => {
+            document.getElementById("joinStatus").innerHTML = '<span class="error">Failed to connect. Check code.</span>';
+        });
+    });
+    peer.on("error", (err) => {
+        document.getElementById("joinStatus").innerHTML = '<span class="error">Error: ' + err.message + '</span>';
+    });
+}
+
+function handlePlayerMessage(data) {
+    switch (data.type) {
+        case "error":
+            document.getElementById("joinStatus").innerHTML = '<span class="error">' + data.msg + '</span>';
+            break;
+
+        case "welcome":
+            myCards = data.cards;
+            players = data.players.map((p, i) => ({ name: p.name, hand: p.hand }));
+            config = data.config;
+            calledNumbers = data.calledNumbers || [];
+            currentRound = data.currentRound || 0;
+            gamePhase = data.gamePhase || "lobby";
+            roundWinners = data.roundWinners || [];
+            myMarks = [[], [], []];
+
+            if (gamePhase === "playing" || gamePhase === "round_over") {
+                showScreen("game");
+                setupGameUI();
+                // Mark FREE spaces
+                myMarks.forEach(m => { if (!m.includes(12)) m.push(12); });
+                renderCards();
+            } else {
+                showLobbySection("lobbyPlayerWait");
+                updatePlayerWaitList();
+            }
+            break;
+
+        case "player_list":
+            players = data.players;
+            renderPlayersList();
+            updatePlayerWaitList();
+            break;
+
+        case "game_start":
+            config = data.config;
+            currentRound = data.round;
+            calledNumbers = [];
+            gamePhase = "playing";
+            isPaused = false;
+            myMarks = [[], [], []];
+            myMarks.forEach(m => m.push(12)); // FREE
+            showScreen("game");
+            setupGameUI();
+            break;
+
+        case "number_called":
+            calledNumbers = data.calledNumbers;
+            showCalledNumber(data.number);
+            renderCalledNumbers();
+            highlightCallable();
+            break;
+
+        case "pause":
+            isPaused = true;
+            document.getElementById("pauseOverlay").classList.add("show");
+            if (data.reason === "hand") showHandBanner(data.name + " raised their hand! ✋");
+            break;
+
+        case "resume":
+            isPaused = false;
+            document.getElementById("pauseOverlay").classList.remove("show");
+            break;
+
+        case "hand_raise":
+            showHandBanner(data.name + " raised their hand! ✋");
+            break;
+
+        case "chat":
+            addChatMessage(data);
+            break;
+
+        case "winner":
+            showWinner(data.name, data.round);
+            gamePhase = "round_over";
+            break;
+
+        case "bingo_invalid":
+            alert("Your BINGO claim was invalid. Keep playing!");
+            break;
+
+        case "round_start":
+            currentRound = data.round;
+            config.pattern = data.pattern;
+            config.anyLine = data.anyLine || false;
+            calledNumbers = [];
+            gamePhase = "playing";
+            myMarks = [[], [], []];
+            myMarks.forEach(m => m.push(12));
+            setupGameUI();
+            break;
+
+        case "new_round":
+            myCards = data.cards;
+            currentRound = data.round;
+            config.pattern = data.pattern;
+            config.anyLine = data.anyLine || false;
+            calledNumbers = [];
+            gamePhase = "playing";
+            myMarks = [[], [], []];
+            myMarks.forEach(m => m.push(12));
+            setupGameUI();
+            break;
+
+        case "pattern_change":
+            config.pattern = data.pattern;
+            config.anyLine = data.anyLine || false;
+            renderPatternMini(document.getElementById("hdrPatternMini"), config.pattern);
+            break;
+
+        case "game_over":
+            roundWinners = data.winners;
+            showGameOver();
+            break;
+    }
+}
+
+function handleLocalMessage(data) {
+    // Admin also processes some messages locally
+    if (data.type === "chat") addChatMessage(data);
+    if (data.type === "player_list") renderPlayersList();
+    if (data.type === "hand_raise") showHandBanner(data.name + " raised their hand! ✋");
+    if (data.type === "winner") showWinner(data.name, data.round);
+    if (data.type === "pause") {
+        document.getElementById("pauseOverlay").classList.toggle("show", true);
+    }
+    if (data.type === "resume") {
+        document.getElementById("pauseOverlay").classList.remove("show");
+    }
+}
+
+function sendToAdmin(data) {
+    if (role === "admin") {
+        // Handle locally
+        handleAdminMessage(data, { peer: "admin" });
+    } else {
+        connections.main?.send(data);
+    }
+}
+
+/* ============================================================
+   GAME UI
+   ============================================================ */
+function setupGameUI() {
+    document.getElementById("hdrRoom").textContent = "Room: " + roomCode;
+    document.getElementById("hdrRound").textContent = "Round " + currentRound + "/" + config.rounds;
+    renderPatternMini(document.getElementById("hdrPatternMini"), config.pattern);
+    document.getElementById("hdrPlayers").textContent = "👥 " + players.length;
+    document.getElementById("winnerOverlay").classList.remove("show");
+    document.getElementById("pauseOverlay").classList.toggle("show", isPaused);
+
+    if (role === "admin") {
+        document.getElementById("adminBar").style.display = "flex";
+        document.getElementById("callBtn").disabled = false;
+        document.getElementById("nextRoundBtn").style.display = "none";
+        document.getElementById("adminCalledCount").textContent = "Called: " + calledNumbers.length + "/75";
+        document.getElementById("sidebarHandBtn").style.display = "none";
+        document.getElementById("cardTabs").style.display = "none";
+    } else {
+        document.getElementById("sidebarHandBtn").style.display = "block";
+    }
+
+    renderCalledNumbers();
+    renderCards();
+    renderPlayersList();
+}
+
+function renderCalledNumbers() {
+    const container = document.getElementById("calledNumbers");
+    container.innerHTML = calledNumbers.map(n =>
+        `<div class="called-num ${getLetterClass(n)}">${n}</div>`
+    ).join("");
+    container.scrollTop = container.scrollHeight;
+}
+
+function renderCards() {
+    const area = document.getElementById("cardsArea");
+    area.innerHTML = "";
+
+    if (role === "admin") {
+        area.innerHTML = '<div style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:var(--muted);text-align:center;padding:20px;">' +
+            '<div style="font-size:48px;">🎙️</div>' +
+            '<div style="font-family:Fredoka,sans-serif;font-size:20px;color:var(--gold);">Admin View</div>' +
+            '<div style="font-size:14px;">Call numbers and manage the game.<br>Players are marking their cards!</div>' +
+            '</div>';
+        return;
+    }
+
+    for (let ci = 0; ci < 3; ci++) {
+        const card = myCards[ci];
+        if (!card) continue;
+
+        const cardDiv = document.createElement("div");
+        cardDiv.className = "bingo-card" + (ci === activeCardTab ? " active" : "");
+        cardDiv.id = "card" + ci;
+
+        // Header
+        const header = document.createElement("div");
+        header.className = "card-header";
+        "BINGO".split("").forEach(letter => {
+            const h = document.createElement("div");
+            h.className = "card-header-cell";
+            h.textContent = letter;
+            header.appendChild(h);
+        });
+        cardDiv.appendChild(header);
+
+        // Grid
+        const grid = document.createElement("div");
+        grid.className = "card-grid";
+
+        for (let row = 0; row < 5; row++) {
+            for (let col = 0; col < 5; col++) {
+                const cell = document.createElement("div");
+                const idx = row * 5 + col;
+                const num = card[row][col];
+                const isFree = (row === 2 && col === 2);
+                const isMarked = myMarks[ci].includes(idx);
+                const isCallable = !isFree && !isMarked && calledNumbers.includes(num);
+
+                cell.className = "bingo-cell" +
+                    (isFree ? " free marked" : "") +
+                    (isMarked && !isFree ? " marked" : "") +
+                    (isCallable ? " callable" : "");
+
+                cell.textContent = isFree ? "FREE" : num;
+                cell.dataset.card = ci;
+                cell.dataset.idx = idx;
+                cell.dataset.num = num;
+
+                if (!isFree && !isMarked) {
+                    cell.onclick = () => markCell(ci, idx, num);
+                }
+
+                grid.appendChild(cell);
+            }
+        }
+        cardDiv.appendChild(grid);
+
+        // Bingo button
+        const bingoBtn = document.createElement("button");
+        bingoBtn.className = "btn-gold";
+        bingoBtn.style.cssText = "margin-top:8px;padding:10px;font-size:16px;";
+        bingoBtn.textContent = "🎉 BINGO!";
+        bingoBtn.onclick = () => claimBingo(ci);
+        cardDiv.appendChild(bingoBtn);
+
+        area.appendChild(cardDiv);
+    }
+}
+
+function markCell(cardIndex, cellIdx, num) {
+    if (gamePhase !== "playing" || isPaused) return;
+    if (!calledNumbers.includes(num)) return; // Can only mark called numbers
+
+    if (!myMarks[cardIndex].includes(cellIdx)) {
+        myMarks[cardIndex].push(cellIdx);
+        renderCards();
+
+        // Notify admin (for logging, not required for game logic)
+        if (role !== "admin") {
+            sendToAdmin({ type: "mark", cardIndex: cardIndex, number: num });
+        }
+    }
+}
+
+function highlightCallable() {
+    renderCards(); // Re-render to update callable highlights
+}
+
+function claimBingo(cardIndex) {
+    if (gamePhase !== "playing") return;
+
+    if (role === "admin") {
+        // Admin verifies their own bingo... but admin doesn't have cards typically
+        // In this design admin doesn't play
+        return;
+    }
+
+    sendToAdmin({
+        type: "bingo",
+        cardIndex: cardIndex,
+        marks: [...myMarks[cardIndex]]
+    });
+}
+
+function switchCard(idx) {
+    activeCardTab = idx;
+    document.querySelectorAll(".card-tab").forEach((t, i) => t.classList.toggle("active", i === idx));
+    document.querySelectorAll(".bingo-card").forEach((c, i) => c.classList.toggle("active", i === idx));
+}
+
+/* ============================================================
+   NUMBER DISPLAY
+   ============================================================ */
+function showCalledNumber(num) {
+    const letter = getLetterForNumber(num);
+    const cls = getLetterClass(num);
+
+    document.getElementById("bigLetter").textContent = letter;
+    document.getElementById("bigNumber").textContent = num;
+    document.getElementById("bigBall").className = "big-ball " + cls;
+
+    const overlay = document.getElementById("numberOverlay");
+    const bar = document.getElementById("overlayBar");
+    overlay.classList.add("show");
+    bar.style.transition = "none";
+    bar.style.width = "100%";
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            bar.style.transition = "width 5s linear";
+            bar.style.width = "0%";
+        });
+    });
+
+    setTimeout(() => {
+        overlay.classList.remove("show");
+    }, 5000);
+
+    // Also render cards to update callable
+    setTimeout(() => renderCards(), 100);
+}
+
+/* ============================================================
+   HAND RAISE
+   ============================================================ */
+function raiseHand() {
+    if (role === "admin") return;
+    sendToAdmin({ type: "hand_raise" });
+}
+
+function showHandBanner(text) {
+    const banner = document.getElementById("handBanner");
+    banner.textContent = text;
+    banner.classList.add("show");
+    setTimeout(() => banner.classList.remove("show"), 5000);
+}
+
+/* ============================================================
+   CHAT
+   ============================================================ */
+function sendChat(source) {
+    const inputId = source === "mob" ? "mobChatInput" : "chatInput";
+    const input = document.getElementById(inputId);
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+
+    if (role === "admin") {
+        broadcastChat({ from: "Admin", text: text, isAdmin: true });
+    } else {
+        sendToAdmin({ type: "chat", text: text });
+    }
+}
+
+function addChatMessage(msg) {
+    chatMsgs.push(msg);
+    const html = msg.system
+        ? `<div class="chat-msg system">${msg.text}</div>`
+        : `<div class="chat-msg"><span class="sender${msg.isAdmin ? ' admin' : ''}">${msg.from}:</span> ${escapeHtml(msg.text)}</div>`;
+
+    document.getElementById("chatMessages").innerHTML += html;
+    document.getElementById("mobChatMessages").innerHTML += html;
+    document.getElementById("chatMessages").scrollTop = 9999;
+    document.getElementById("mobChatMessages").scrollTop = 9999;
+
+    // Notification
+    const sidebarChat = document.getElementById("sidebarChat");
+    if (!sidebarChat.classList.contains("active")) {
+        chatUnread++;
+        const notif = document.getElementById("chatNotif");
+        notif.textContent = chatUnread;
+        notif.style.display = "inline";
+    }
+}
+
+function escapeHtml(text) {
+    const d = document.createElement("div");
+    d.textContent = text;
+    return d.innerHTML;
+}
+
+/* ============================================================
+   PLAYERS LIST
+   ============================================================ */
+function renderPlayersList() {
+    const html = players.map(p =>
+        `<div class="player-item">
+            <span class="player-dot"></span>
+            <span class="player-name">${escapeHtml(p.name)}</span>
+            ${p.hand ? '<span class="player-hand">✋</span>' : ''}
+        </div>`
+    ).join("");
+
+    document.getElementById("playersList").innerHTML =
+        (role === "admin" ? '<div class="player-item"><span class="player-dot"></span><span class="player-name">Admin</span><span class="player-admin-badge">HOST</span></div>' : '') + html;
+    document.getElementById("mobPlayersList").innerHTML =
+        (role === "admin" ? '<div class="player-item"><span class="player-dot"></span><span class="player-name">Admin</span><span class="player-admin-badge">HOST</span></div>' : '') + html;
+
+    document.getElementById("hdrPlayers").textContent = "👥 " + players.length;
+}
+
+function updatePlayerWaitList() {
+    const html = players.map(p => `<div>🟢 ${p.name}</div>`).join("");
+    const el = document.getElementById("playerWaitList");
+    if (el) el.innerHTML = html;
+    const count = document.getElementById("playerWaitCount");
+    if (count) count.textContent = players.length + " players";
+}
+
+/* ============================================================
+   WINNER / GAME OVER
+   ============================================================ */
+function showWinner(name, round) {
+    document.getElementById("winnerName").textContent = name + " got BINGO!";
+    document.getElementById("winnerMsg").textContent = "Winner of Round " + round + "!";
+    document.getElementById("winnerOverlay").classList.add("show");
+
+    if (role === "admin") {
+        document.getElementById("winnerDismiss").style.display = "inline-block";
+        document.getElementById("callBtn").disabled = true;
+        document.getElementById("nextRoundBtn").style.display = (currentRound < config.rounds) ? "inline-block" : "none";
+    } else {
+        document.getElementById("winnerDismiss").style.display = "inline-block";
+    }
+}
+
+function dismissWinner() {
+    document.getElementById("winnerOverlay").classList.remove("show");
+}
+
+function showGameOver() {
+    gamePhase = "game_over";
+    const names = roundWinners.map((w, i) => `Round ${w.round}: ${w.name}`).join("\n");
+    document.getElementById("winnerName").textContent = "🎊 GAME OVER!";
+    document.getElementById("winnerMsg").textContent = roundWinners.length > 0
+        ? "Winners:\n" + names
+        : "No winners this game!";
+    document.getElementById("winnerMsg").style.whiteSpace = "pre-line";
+    document.getElementById("winnerOverlay").classList.add("show");
+    document.getElementById("winnerDismiss").textContent = "Close";
+    if (role === "admin") {
+        document.getElementById("callBtn").disabled = true;
+        document.getElementById("nextRoundBtn").style.display = "none";
+    }
+}
+
+/* ============================================================
+   SIDEBAR / MOBILE
+   ============================================================ */
+function switchSidebar(tab, el) {
+    document.querySelectorAll(".game-sidebar .sidebar-tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".game-sidebar .sidebar-panel").forEach(p => p.classList.remove("active"));
+    el.classList.add("active");
+    document.getElementById("sidebar" + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add("active");
+    if (tab === "chat") {
+        chatUnread = 0;
+        document.getElementById("chatNotif").style.display = "none";
+    }
+}
+
+function openMobileSidebar(tab) {
+    document.getElementById("mobileSidebar").classList.add("show");
+    switchMobTab(tab);
+}
+function closeMobileSidebar() {
+    document.getElementById("mobileSidebar").classList.remove("show");
+}
+function switchMobTab(tab) {
+    document.getElementById("mobTabPlayers").classList.toggle("active", tab === "players");
+    document.getElementById("mobTabChat").classList.toggle("active", tab === "chat");
+    document.getElementById("mobPlayers").classList.toggle("active", tab === "players");
+    document.getElementById("mobChat").classList.toggle("active", tab === "chat");
+    if (tab === "chat") {
+        chatUnread = 0;
+        document.getElementById("chatNotif").style.display = "none";
+    }
+}
+
+function copyCode() {
+    navigator.clipboard.writeText(roomCode).then(() => {
+        const btn = event.target;
+        btn.textContent = "✅ Copied!";
+        setTimeout(() => btn.textContent = "📋 Copy Code", 2000);
+    });
+}
+
+/* ============================================================
+   INIT PATTERN GRID
+   ============================================================ */
+setPreset("line");
+</script>
+</body>
+</html>
