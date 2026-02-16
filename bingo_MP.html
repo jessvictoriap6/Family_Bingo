@@ -433,7 +433,7 @@ input:focus { border-color: var(--teal); }
 .number-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(10,22,40,0.88);
+    background: rgba(10,22,40,0.7);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -445,7 +445,7 @@ input:focus { border-color: var(--teal); }
 }
 .number-overlay.show {
     opacity: 1;
-    pointer-events: auto;
+    pointer-events: none;
 }
 .big-ball {
     width: clamp(140px, 35vw, 220px);
@@ -979,7 +979,11 @@ input:focus { border-color: var(--teal); }
         <div class="trophy">🏆</div>
         <h2 id="winnerName">BINGO!</h2>
         <p id="winnerMsg">Winner of Round 1!</p>
-        <button class="btn-gold" id="winnerDismiss" onclick="dismissWinner()" style="margin-top:20px;width:auto;">Continue</button>
+        <div id="winnerActions" style="margin-top:20px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+            <button class="btn-gold" id="winnerNextRound" onclick="adminNextRound()" style="width:auto;display:none;">Next Round ▶</button>
+            <button class="btn-danger" id="winnerEndGame" onclick="adminEndGame()" style="width:auto;padding:12px 28px;display:none;">End Game</button>
+            <button class="btn-muted" id="winnerDismiss" onclick="dismissWinner()" style="width:auto;padding:12px 28px;">Close</button>
+        </div>
     </div>
 </div>
 
@@ -1416,6 +1420,7 @@ function adminTogglePause() {
 }
 
 function adminNextRound() {
+    document.getElementById("winnerOverlay").classList.remove("show");
     currentRound++;
     if (currentRound > config.rounds) {
         gamePhase = "game_over";
@@ -1443,6 +1448,13 @@ function adminNextRound() {
     document.getElementById("nextRoundBtn").style.display = "none";
     document.getElementById("callBtn").disabled = false;
     setupGameUI();
+}
+
+function adminEndGame() {
+    document.getElementById("winnerOverlay").classList.remove("show");
+    gamePhase = "game_over";
+    broadcastAll({ type: "game_over", winners: roundWinners });
+    showGameOver();
 }
 
 function adminChangePattern() {
@@ -1824,14 +1836,14 @@ function showCalledNumber(num) {
 
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-            bar.style.transition = "width 5s linear";
+            bar.style.transition = "width 3s linear";
             bar.style.width = "0%";
         });
     });
 
     setTimeout(() => {
         overlay.classList.remove("show");
-    }, 5000);
+    }, 3000);
 
     // Also render cards to update callable
     setTimeout(() => renderCards(), 100);
@@ -1933,10 +1945,19 @@ function showWinner(name, round) {
     document.getElementById("winnerOverlay").classList.add("show");
 
     if (role === "admin") {
-        document.getElementById("winnerDismiss").style.display = "inline-block";
         document.getElementById("callBtn").disabled = true;
-        document.getElementById("nextRoundBtn").style.display = (currentRound < config.rounds) ? "inline-block" : "none";
+        if (currentRound < config.rounds) {
+            document.getElementById("winnerNextRound").style.display = "inline-block";
+            document.getElementById("winnerEndGame").style.display = "inline-block";
+        } else {
+            document.getElementById("winnerNextRound").style.display = "none";
+            document.getElementById("winnerEndGame").style.display = "inline-block";
+            document.getElementById("winnerEndGame").textContent = "Finish Game";
+        }
+        document.getElementById("winnerDismiss").style.display = "none";
     } else {
+        document.getElementById("winnerNextRound").style.display = "none";
+        document.getElementById("winnerEndGame").style.display = "none";
         document.getElementById("winnerDismiss").style.display = "inline-block";
     }
 }
@@ -1954,6 +1975,9 @@ function showGameOver() {
         : "No winners this game!";
     document.getElementById("winnerMsg").style.whiteSpace = "pre-line";
     document.getElementById("winnerOverlay").classList.add("show");
+    document.getElementById("winnerNextRound").style.display = "none";
+    document.getElementById("winnerEndGame").style.display = "none";
+    document.getElementById("winnerDismiss").style.display = "inline-block";
     document.getElementById("winnerDismiss").textContent = "Close";
     if (role === "admin") {
         document.getElementById("callBtn").disabled = true;
