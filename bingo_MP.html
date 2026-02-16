@@ -262,14 +262,16 @@ input:focus { border-color: var(--teal); }
     display: flex;
     flex: 1;
     overflow: hidden;
+    min-height: 0;
 }
 .game-main {
     flex: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow-y: auto;
     padding: 8px;
     gap: 8px;
+    min-height: 0;
 }
 .game-sidebar {
     width: 280px;
@@ -342,9 +344,10 @@ input:focus { border-color: var(--teal); }
 }
 .cards-area {
     flex: 1;
-    overflow: hidden;
     display: flex;
     gap: 8px;
+    min-height: 0;
+    overflow-y: auto;
 }
 .bingo-card {
     background: var(--panel);
@@ -353,6 +356,8 @@ input:focus { border-color: var(--teal); }
     display: none;
     flex-direction: column;
     flex: 1;
+    min-width: 0;
+    min-height: 0;
 }
 .bingo-card.active { display: flex; }
 .card-header {
@@ -379,6 +384,7 @@ input:focus { border-color: var(--teal); }
     grid-template-columns: repeat(5, 1fr);
     gap: 4px;
     flex: 1;
+    min-height: 0;
 }
 .bingo-cell {
     background: var(--cell-bg);
@@ -391,7 +397,8 @@ input:focus { border-color: var(--teal); }
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s;
-    aspect-ratio: 1;
+    min-height: 36px;
+    padding: 6px 2px;
     position: relative;
     border: 2px solid transparent;
     user-select: none;
@@ -799,6 +806,7 @@ input:focus { border-color: var(--teal); }
     .bingo-card.active { display: flex; }
     .bingo-card { display: flex; }
     .card-tabs { display: none; }
+    .bingo-cell { min-height: 42px; }
 }
 
 /* ========== SCROLLBAR ========== */
