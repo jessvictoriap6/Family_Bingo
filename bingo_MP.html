@@ -982,6 +982,7 @@ input:focus { border-color: var(--teal); }
         <div id="winnerActions" style="margin-top:20px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
             <button class="btn-gold" id="winnerNextRound" onclick="adminNextRound()" style="width:auto;display:none;">Next Round ▶</button>
             <button class="btn-danger" id="winnerEndGame" onclick="adminEndGame()" style="width:auto;padding:12px 28px;display:none;">End Game</button>
+            <button class="btn-primary" id="winnerNewGame" onclick="startNewGame()" style="width:auto;padding:12px 28px;display:none;">🔄 New Game</button>
             <button class="btn-muted" id="winnerDismiss" onclick="dismissWinner()" style="width:auto;padding:12px 28px;">Close</button>
         </div>
     </div>
@@ -1457,6 +1458,46 @@ function adminEndGame() {
     showGameOver();
 }
 
+function startNewGame() {
+    // Reset game state
+    document.getElementById("winnerOverlay").classList.remove("show");
+    currentRound = 0;
+    calledNumbers = [];
+    isPaused = false;
+    gamePhase = "lobby";
+    myCards = [];
+    myMarks = [[], [], []];
+    chatMsgs = [];
+    chatUnread = 0;
+    activeCardTab = 0;
+    roundWinners = [];
+
+    // Clear chat UI
+    document.getElementById("chatMessages").innerHTML = "";
+    document.getElementById("mobChatMessages").innerHTML = "";
+
+    if (role === "admin") {
+        // Regenerate cards for all players
+        players.forEach(p => {
+            p.hand = false;
+            p.cards = [generateCard(), generateCard(), generateCard()];
+        });
+
+        // Notify all players to return to lobby
+        broadcastAll({ type: "new_game" });
+
+        // Return admin to waiting room
+        showScreen("lobby");
+        showLobbySection("lobbyWaiting");
+        updateLobbyPlayerList();
+    } else {
+        // Player: return to waiting screen
+        showScreen("lobby");
+        showLobbySection("lobbyPlayerWait");
+        updatePlayerWaitList();
+    }
+}
+
 function adminChangePattern() {
     modalPattern = [...config.pattern];
     renderPatternGrid("modalPatternGrid", modalPattern, true);
@@ -1639,6 +1680,27 @@ function handlePlayerMessage(data) {
             roundWinners = data.winners;
             showGameOver();
             break;
+
+        case "new_game":
+            // Reset state and return to waiting lobby
+            document.getElementById("winnerOverlay").classList.remove("show");
+            currentRound = 0;
+            calledNumbers = [];
+            isPaused = false;
+            gamePhase = "lobby";
+            myCards = [];
+            myMarks = [[], [], []];
+            chatMsgs = [];
+            chatUnread = 0;
+            activeCardTab = 0;
+            roundWinners = [];
+            document.getElementById("chatMessages").innerHTML = "";
+            document.getElementById("mobChatMessages").innerHTML = "";
+            showScreen("lobby");
+            showLobbySection("lobbyPlayerWait");
+            document.getElementById("playerWaitMsg").textContent = "Waiting for admin to start a new game...";
+            updatePlayerWaitList();
+            break;
     }
 }
 
@@ -1653,6 +1715,9 @@ function handleLocalMessage(data) {
     }
     if (data.type === "resume") {
         document.getElementById("pauseOverlay").classList.remove("show");
+    }
+    if (data.type === "new_game") {
+        // Admin handles new_game in startNewGame directly, skip local handling
     }
 }
 
@@ -1943,6 +2008,7 @@ function showWinner(name, round) {
     document.getElementById("winnerName").textContent = name + " got BINGO!";
     document.getElementById("winnerMsg").textContent = "Winner of Round " + round + "!";
     document.getElementById("winnerOverlay").classList.add("show");
+    document.getElementById("winnerNewGame").style.display = "none";
 
     if (role === "admin") {
         document.getElementById("callBtn").disabled = true;
@@ -1979,9 +2045,14 @@ function showGameOver() {
     document.getElementById("winnerEndGame").style.display = "none";
     document.getElementById("winnerDismiss").style.display = "inline-block";
     document.getElementById("winnerDismiss").textContent = "Close";
+
+    // Show New Game button for admin
     if (role === "admin") {
+        document.getElementById("winnerNewGame").style.display = "inline-block";
         document.getElementById("callBtn").disabled = true;
         document.getElementById("nextRoundBtn").style.display = "none";
+    } else {
+        document.getElementById("winnerNewGame").style.display = "none";
     }
 }
 
