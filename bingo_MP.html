@@ -813,6 +813,101 @@ input:focus { border-color: var(--teal); }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #2a3a5c; border-radius: 2px; }
+
+/* ========== CELL STAMP ANIMATION ========== */
+@keyframes cellStamp {
+    0%   { transform: scale(1.4) rotate(-8deg); opacity: 0.6; }
+    40%  { transform: scale(0.88) rotate(3deg); }
+    70%  { transform: scale(1.05) rotate(-1deg); }
+    100% { transform: scale(0.95) rotate(0deg); opacity: 1; }
+}
+.bingo-cell.just-marked {
+    animation: cellStamp 0.35s ease-out forwards;
+}
+
+/* ========== CONFETTI CANVAS ========== */
+#confettiCanvas {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 700;
+    display: none;
+}
+
+/* ========== COUNTDOWN TIMER ========== */
+.countdown-bar-wrap {
+    height: 6px;
+    background: #2a3a5c;
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 4px 0 0;
+    flex-shrink: 0;
+}
+.countdown-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--teal);
+    transition: width 1s linear, background 0.3s;
+    width: 100%;
+}
+.countdown-bar-fill.urgent { background: var(--pink); }
+.countdown-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+    padding: 0 4px;
+}
+.auto-call-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0 4px;
+}
+.auto-call-toggle input { width: auto; }
+
+/* ========== LEADERBOARD ========== */
+.leaderboard-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 4px;
+    background: var(--cell-bg);
+}
+.lb-rank {
+    font-family: 'Fredoka', sans-serif;
+    font-size: 16px;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.lb-name { flex: 1; font-weight: 700; }
+.lb-wins {
+    font-family: 'Fredoka', sans-serif;
+    font-size: 15px;
+    color: var(--gold);
+    font-weight: 700;
+}
+.lb-win-pip {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--gold);
+    margin-left: 2px;
+}
+.lb-empty {
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+    padding: 16px 8px;
+    font-style: italic;
+}
 </style>
 </head>
 <body>
@@ -831,6 +926,11 @@ input:focus { border-color: var(--teal); }
     <!-- CREATE ROOM -->
     <div id="lobbyCreate" class="lobby-section" style="display:none;">
         <h2>🎙️ Create Room</h2>
+
+        <div class="config-section">
+            <label>Your Name</label>
+            <input type="text" id="cfgAdminName" placeholder="Enter your name" maxlength="20" value="Admin">
+        </div>
 
         <div class="config-section">
             <label>Number of Rounds</label>
@@ -906,7 +1006,12 @@ input:focus { border-color: var(--teal); }
         <button class="btn-call" id="callBtn" onclick="adminCallNumber()">📢 Call Number</button>
         <button class="btn-muted btn-sm" id="nextRoundBtn" onclick="adminNextRound()" style="display:none;">Next Round ▶</button>
         <button class="btn-muted btn-sm" onclick="adminChangePattern()">🔧 Pattern</button>
+        <span class="countdown-label" id="countdownLabel"></span>
+        <label class="auto-call-toggle"><input type="checkbox" id="autoCallChk" onchange="toggleAutoCall()"> Auto-call</label>
         <span id="adminCalledCount" style="font-size:12px;color:var(--muted);margin-left:auto;">Called: 0/75</span>
+    </div>
+    <div class="countdown-bar-wrap" id="countdownBarWrap" style="display:none;">
+        <div class="countdown-bar-fill" id="countdownBarFill"></div>
     </div>
 
     <!-- BODY -->
@@ -934,6 +1039,7 @@ input:focus { border-color: var(--teal); }
             <div class="sidebar-tabs">
                 <div class="sidebar-tab active" onclick="switchSidebar('players',this)">Players</div>
                 <div class="sidebar-tab" onclick="switchSidebar('chat',this)">Chat <span class="notif" id="chatNotif" style="display:none;">0</span></div>
+                <div class="sidebar-tab" onclick="switchSidebar('leaderboard',this)">🏆</div>
             </div>
             <div class="sidebar-panel active" id="sidebarPlayers">
                 <div id="playersList"></div>
@@ -944,6 +1050,9 @@ input:focus { border-color: var(--teal); }
                     <input id="chatInput" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat()">
                     <button onclick="sendChat()">Send</button>
                 </div>
+            </div>
+            <div class="sidebar-panel" id="sidebarLeaderboard">
+                <div id="leaderboardList"><div class="lb-empty">No wins yet!</div></div>
             </div>
             <div style="padding:8px;border-top:1px solid #2a3a5c;flex-shrink:0;" id="sidebarHandBtn">
                 <button onclick="raiseHand()" style="width:100%;padding:10px;font-size:14px;background:var(--gold);color:#0a1628;">✋ Raise Hand</button>
@@ -995,6 +1104,7 @@ input:focus { border-color: var(--teal); }
         <div class="sidebar-tabs">
             <div class="sidebar-tab" id="mobTabPlayers" onclick="switchMobTab('players')">Players</div>
             <div class="sidebar-tab" id="mobTabChat" onclick="switchMobTab('chat')">Chat</div>
+            <div class="sidebar-tab" id="mobTabLeaderboard" onclick="switchMobTab('leaderboard')">🏆</div>
             <button style="padding:8px 14px;background:var(--danger);color:#fff;font-size:12px;border-radius:0;" onclick="closeMobileSidebar()">✕</button>
         </div>
         <div class="sidebar-panel" id="mobPlayers">
@@ -1007,8 +1117,14 @@ input:focus { border-color: var(--teal); }
                 <button onclick="sendChat('mob')">Send</button>
             </div>
         </div>
+        <div class="sidebar-panel" id="mobLeaderboard">
+            <div id="mobLeaderboardList"><div class="lb-empty">No wins yet!</div></div>
+        </div>
     </div>
 </div>
+
+<!-- CONFETTI CANVAS -->
+<canvas id="confettiCanvas"></canvas>
 
 <!-- PATTERN CHANGE MODAL -->
 <div class="winner-overlay" id="patternModal">
@@ -1205,6 +1321,7 @@ function backToMenu() { showLobbySection("lobbyMenu"); if (peer) { peer.destroy(
    ============================================================ */
 function createRoom() {
     config.rounds = Math.max(1, Math.min(20, parseInt(document.getElementById("cfgRounds").value) || 3));
+    myName = document.getElementById("cfgAdminName").value.trim() || "Admin";
     roomCode = generateRoomCode();
     const peerId = "bg-" + roomCode;
 
@@ -1377,6 +1494,10 @@ function adminStartGame() {
     gamePhase = "playing";
     isPaused = false;
 
+    // Generate admin's own cards
+    myCards = [generateCard(), generateCard(), generateCard()];
+    myMarks = [[12], [12], [12]];
+
     broadcastAll({
         type: "game_start",
         config: { ...config },
@@ -1404,6 +1525,8 @@ function adminCallNumber() {
     showCalledNumber(num);
     renderCalledNumbers();
     document.getElementById("adminCalledCount").textContent = "Called: " + calledNumbers.length + "/75";
+    soundNumberCall();
+    startCountdown();
 }
 
 function adminTogglePause() {
@@ -1412,6 +1535,7 @@ function adminTogglePause() {
         broadcastAll({ type: "pause", reason: "admin" });
         document.getElementById("pauseBtn").innerHTML = "▶ Resume";
         document.getElementById("pauseBtn").className = "btn-resume";
+        stopCountdown();
     } else {
         broadcastAll({ type: "resume" });
         document.getElementById("pauseBtn").innerHTML = "⏸ Pause";
@@ -1432,6 +1556,11 @@ function adminNextRound() {
     calledNumbers = [];
     gamePhase = "playing";
     isPaused = false;
+
+    // New cards for admin
+    myCards = [generateCard(), generateCard(), generateCard()];
+    myMarks = [[12], [12], [12]];
+    activeCardTab = 0;
 
     // Regenerate cards for all players
     players.forEach(p => {
@@ -1471,6 +1600,8 @@ function startNewGame() {
     chatUnread = 0;
     activeCardTab = 0;
     roundWinners = [];
+    stopCountdown();
+    resetLeaderboard();
 
     // Clear chat UI
     document.getElementById("chatMessages").innerHTML = "";
@@ -1617,6 +1748,7 @@ function handlePlayerMessage(data) {
             showCalledNumber(data.number);
             renderCalledNumbers();
             highlightCallable();
+            soundNumberCall();
             break;
 
         case "pause":
@@ -1747,7 +1879,6 @@ function setupGameUI() {
         document.getElementById("nextRoundBtn").style.display = "none";
         document.getElementById("adminCalledCount").textContent = "Called: " + calledNumbers.length + "/75";
         document.getElementById("sidebarHandBtn").style.display = "none";
-        document.getElementById("cardTabs").style.display = "none";
     } else {
         document.getElementById("sidebarHandBtn").style.display = "block";
     }
@@ -1768,15 +1899,6 @@ function renderCalledNumbers() {
 function renderCards() {
     const area = document.getElementById("cardsArea");
     area.innerHTML = "";
-
-    if (role === "admin") {
-        area.innerHTML = '<div style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:var(--muted);text-align:center;padding:20px;">' +
-            '<div style="font-size:48px;">🎙️</div>' +
-            '<div style="font-family:Fredoka,sans-serif;font-size:20px;color:var(--gold);">Admin View</div>' +
-            '<div style="font-size:14px;">Call numbers and manage the game.<br>Players are marking their cards!</div>' +
-            '</div>';
-        return;
-    }
 
     for (let ci = 0; ci < 3; ci++) {
         const card = myCards[ci];
@@ -1843,13 +1965,23 @@ function renderCards() {
 
 function markCell(cardIndex, cellIdx, num) {
     if (gamePhase !== "playing" || isPaused) return;
-    if (!calledNumbers.includes(num)) return; // Can only mark called numbers
+    if (!calledNumbers.includes(num)) return;
 
     if (!myMarks[cardIndex].includes(cellIdx)) {
         myMarks[cardIndex].push(cellIdx);
+        soundCellMark();
         renderCards();
 
-        // Notify admin (for logging, not required for game logic)
+        // Stamp animation on the newly marked cell
+        const cell = document.querySelector(`.bingo-cell[data-card="${cardIndex}"][data-idx="${cellIdx}"]`);
+        if (cell) {
+            cell.classList.add("just-marked");
+            setTimeout(() => cell.classList.remove("just-marked"), 400);
+        }
+
+        // Near-bingo chime
+        if (checkNearBingo(cardIndex)) soundNearBingo();
+
         if (role !== "admin") {
             sendToAdmin({ type: "mark", cardIndex: cardIndex, number: num });
         }
@@ -1860,12 +1992,298 @@ function highlightCallable() {
     renderCards(); // Re-render to update callable highlights
 }
 
+/* ============================================================
+   SOUNDS (Web Audio API — no external files)
+   ============================================================ */
+let audioCtx = null;
+function getAudioCtx() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+}
+function playTone(freq, type, duration, gainVal, startTime) {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, startTime);
+    gain.gain.setValueAtTime(gainVal, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    osc.start(startTime);
+    osc.stop(startTime + duration);
+}
+function soundNumberCall() {
+    const ctx = getAudioCtx();
+    const t = ctx.currentTime;
+    playTone(440, 'sine', 0.12, 0.3, t);
+    playTone(660, 'sine', 0.18, 0.25, t + 0.06);
+}
+function soundCellMark() {
+    const ctx = getAudioCtx();
+    const t = ctx.currentTime;
+    playTone(520, 'triangle', 0.08, 0.2, t);
+    playTone(780, 'triangle', 0.1, 0.15, t + 0.05);
+}
+function soundNearBingo() {
+    const ctx = getAudioCtx();
+    const t = ctx.currentTime;
+    [440, 550, 660, 770].forEach((f, i) => playTone(f, 'sine', 0.15, 0.2, t + i * 0.1));
+}
+function soundBingo() {
+    const ctx = getAudioCtx();
+    const t = ctx.currentTime;
+    const fanfare = [523, 659, 784, 1047, 784, 1047, 1047, 1319];
+    fanfare.forEach((f, i) => playTone(f, 'triangle', 0.25, 0.35, t + i * 0.12));
+    // Drum hits
+    for (let i = 0; i < 4; i++) {
+        const noise = ctx.createOscillator();
+        const g = ctx.createGain();
+        noise.connect(g); g.connect(ctx.destination);
+        noise.type = 'sawtooth';
+        noise.frequency.setValueAtTime(80, t + i * 0.25);
+        noise.frequency.exponentialRampToValueAtTime(20, t + i * 0.25 + 0.12);
+        g.gain.setValueAtTime(0.3, t + i * 0.25);
+        g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.25 + 0.15);
+        noise.start(t + i * 0.25);
+        noise.stop(t + i * 0.25 + 0.2);
+    }
+}
+
+/* ============================================================
+   CONFETTI
+   ============================================================ */
+let confettiParticles = [];
+let confettiRAF = null;
+const CONFETTI_COLORS = ['#f5c842','#ff5e8a','#22d1b5','#3b82f6','#a855f7','#22c55e','#fff'];
+
+function launchConfetti() {
+    const canvas = document.getElementById("confettiCanvas");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    canvas.style.display = "block";
+    confettiParticles = [];
+    for (let i = 0; i < 160; i++) {
+        confettiParticles.push({
+            x: Math.random() * canvas.width,
+            y: -10 - Math.random() * 200,
+            w: 6 + Math.random() * 8,
+            h: 10 + Math.random() * 6,
+            color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+            vx: (Math.random() - 0.5) * 4,
+            vy: 2 + Math.random() * 4,
+            rot: Math.random() * 360,
+            rotV: (Math.random() - 0.5) * 8
+        });
+    }
+    if (confettiRAF) cancelAnimationFrame(confettiRAF);
+    animateConfetti();
+    setTimeout(stopConfetti, 5000);
+}
+
+function animateConfetti() {
+    const canvas = document.getElementById("confettiCanvas");
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    confettiParticles.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.rot += p.rotV; p.vy += 0.05;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot * Math.PI / 180);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+    });
+    confettiParticles = confettiParticles.filter(p => p.y < canvas.height + 20);
+    if (confettiParticles.length > 0) {
+        confettiRAF = requestAnimationFrame(animateConfetti);
+    } else {
+        stopConfetti();
+    }
+}
+
+function stopConfetti() {
+    if (confettiRAF) { cancelAnimationFrame(confettiRAF); confettiRAF = null; }
+    const canvas = document.getElementById("confettiCanvas");
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    canvas.style.display = "none";
+}
+
+/* ============================================================
+   NEAR-BINGO DETECTION
+   ============================================================ */
+function checkNearBingo(cardIndex) {
+    const card = myCards[cardIndex];
+    const marks = myMarks[cardIndex];
+    if (!card) return false;
+
+    function countInPattern(pattern) {
+        let needed = 0, have = 0;
+        for (let i = 0; i < 25; i++) {
+            if (!pattern[i]) continue;
+            if (i === 12) continue;
+            needed++;
+            if (marks.includes(i)) have++;
+        }
+        return needed - have;
+    }
+
+    if (config.anyLine) {
+        for (let r = 0; r < 5; r++) {
+            const p = Array(25).fill(false);
+            for (let c = 0; c < 5; c++) p[r*5+c] = true;
+            if (countInPattern(p) === 1) return true;
+        }
+        for (let c = 0; c < 5; c++) {
+            const p = Array(25).fill(false);
+            for (let r = 0; r < 5; r++) p[r*5+c] = true;
+            if (countInPattern(p) === 1) return true;
+        }
+        const d1 = Array(25).fill(false), d2 = Array(25).fill(false);
+        for (let i = 0; i < 5; i++) { d1[i*5+i] = true; d2[i*5+(4-i)] = true; }
+        if (countInPattern(d1) === 1 || countInPattern(d2) === 1) return true;
+    } else {
+        if (countInPattern(config.pattern) === 1) return true;
+    }
+    return false;
+}
+
+/* ============================================================
+   COUNTDOWN TIMER
+   ============================================================ */
+let countdownInterval = null;
+let countdownSeconds = 0;
+let autoCallEnabled = false;
+let autoCallTimeout = null;
+const COUNTDOWN_DURATION = 15;
+
+function toggleAutoCall() {
+    autoCallEnabled = document.getElementById("autoCallChk").checked;
+    if (!autoCallEnabled && autoCallTimeout) {
+        clearTimeout(autoCallTimeout);
+        autoCallTimeout = null;
+    }
+}
+
+function startCountdown() {
+    if (role !== "admin") return;
+    stopCountdown();
+    countdownSeconds = COUNTDOWN_DURATION;
+    const wrap = document.getElementById("countdownBarWrap");
+    const fill = document.getElementById("countdownBarFill");
+    const label = document.getElementById("countdownLabel");
+    wrap.style.display = "block";
+    fill.style.transition = "none";
+    fill.style.width = "100%";
+    fill.classList.remove("urgent");
+
+    countdownInterval = setInterval(() => {
+        countdownSeconds--;
+        const pct = (countdownSeconds / COUNTDOWN_DURATION) * 100;
+        fill.style.transition = "width 1s linear";
+        fill.style.width = pct + "%";
+        label.textContent = countdownSeconds + "s";
+        if (countdownSeconds <= 5) fill.classList.add("urgent");
+        if (countdownSeconds <= 0) {
+            stopCountdown();
+            if (autoCallEnabled && gamePhase === "playing" && !isPaused) {
+                autoCallTimeout = setTimeout(() => adminCallNumber(), 300);
+            }
+        }
+    }, 1000);
+}
+
+function stopCountdown() {
+    if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+    if (autoCallTimeout) { clearTimeout(autoCallTimeout); autoCallTimeout = null; }
+    const label = document.getElementById("countdownLabel");
+    const wrap = document.getElementById("countdownBarWrap");
+    if (label) label.textContent = "";
+    if (wrap) wrap.style.display = "none";
+}
+
+/* ============================================================
+   LEADERBOARD
+   ============================================================ */
+let leaderboard = {}; // { playerName: winCount }
+
+function updateLeaderboard(winnerName) {
+    if (!winnerName || winnerName === "GAME OVER!") return;
+    leaderboard[winnerName] = (leaderboard[winnerName] || 0) + 1;
+    renderLeaderboard();
+}
+
+function renderLeaderboard() {
+    const sorted = Object.entries(leaderboard).sort((a, b) => b[1] - a[1]);
+    const rankEmoji = ['🥇','🥈','🥉'];
+
+    const html = sorted.length === 0
+        ? '<div class="lb-empty">No wins yet!</div>'
+        : sorted.map(([name, wins], i) =>
+            `<div class="leaderboard-row">
+                <span class="lb-rank">${rankEmoji[i] || (i+1)}</span>
+                <span class="lb-name">${escapeHtml(name)}</span>
+                <span class="lb-wins">${'●'.repeat(wins)} ${wins}</span>
+            </div>`
+        ).join("");
+
+    document.getElementById("leaderboardList").innerHTML = html;
+    document.getElementById("mobLeaderboardList").innerHTML = html;
+}
+
+function resetLeaderboard() {
+    leaderboard = {};
+    renderLeaderboard();
+}
+
 function claimBingo(cardIndex) {
     if (gamePhase !== "playing") return;
 
     if (role === "admin") {
-        // Admin verifies their own bingo... but admin doesn't have cards typically
-        // In this design admin doesn't play
+        // Verify admin's own bingo locally
+        const card = myCards[cardIndex];
+        if (!card) return;
+
+        function checkPatternLocal(pattern) {
+            for (let i = 0; i < 25; i++) {
+                if (!pattern[i]) continue;
+                const row = Math.floor(i / 5), col = i % 5;
+                if (row === 2 && col === 2) continue;
+                const num = card[row][col];
+                if (!calledNumbers.includes(num) || !myMarks[cardIndex].includes(i)) return false;
+            }
+            return true;
+        }
+
+        let valid = false;
+        if (config.anyLine) {
+            for (let r = 0; r < 5 && !valid; r++) {
+                const p = Array(25).fill(false);
+                for (let c = 0; c < 5; c++) p[r*5+c] = true;
+                if (checkPatternLocal(p)) valid = true;
+            }
+            for (let c = 0; c < 5 && !valid; c++) {
+                const p = Array(25).fill(false);
+                for (let r = 0; r < 5; r++) p[r*5+c] = true;
+                if (checkPatternLocal(p)) valid = true;
+            }
+            if (!valid) {
+                const d1 = Array(25).fill(false), d2 = Array(25).fill(false);
+                for (let i = 0; i < 5; i++) { d1[i*5+i] = true; d2[i*5+(4-i)] = true; }
+                if (checkPatternLocal(d1) || checkPatternLocal(d2)) valid = true;
+            }
+        } else {
+            valid = checkPatternLocal(config.pattern);
+        }
+
+        if (!valid) {
+            alert("Your BINGO claim is invalid. Keep playing!");
+            return;
+        }
+
+        roundWinners.push({ name: myName, round: currentRound });
+        broadcastAll({ type: "winner", name: myName, round: currentRound });
+        gamePhase = "round_over";
         return;
     }
 
@@ -1940,7 +2358,7 @@ function sendChat(source) {
     input.value = "";
 
     if (role === "admin") {
-        broadcastChat({ from: "Admin", text: text, isAdmin: true });
+        broadcastChat({ from: myName, text: text, isAdmin: true });
     } else {
         sendToAdmin({ type: "chat", text: text });
     }
@@ -1986,9 +2404,9 @@ function renderPlayersList() {
     ).join("");
 
     document.getElementById("playersList").innerHTML =
-        (role === "admin" ? '<div class="player-item"><span class="player-dot"></span><span class="player-name">Admin</span><span class="player-admin-badge">HOST</span></div>' : '') + html;
+        (role === "admin" ? `<div class="player-item"><span class="player-dot"></span><span class="player-name">${escapeHtml(myName)}</span><span class="player-admin-badge">HOST</span></div>` : '') + html;
     document.getElementById("mobPlayersList").innerHTML =
-        (role === "admin" ? '<div class="player-item"><span class="player-dot"></span><span class="player-name">Admin</span><span class="player-admin-badge">HOST</span></div>' : '') + html;
+        (role === "admin" ? `<div class="player-item"><span class="player-dot"></span><span class="player-name">${escapeHtml(myName)}</span><span class="player-admin-badge">HOST</span></div>` : '') + html;
 
     document.getElementById("hdrPlayers").textContent = "👥 " + players.length;
 }
@@ -2009,6 +2427,11 @@ function showWinner(name, round) {
     document.getElementById("winnerMsg").textContent = "Winner of Round " + round + "!";
     document.getElementById("winnerOverlay").classList.add("show");
     document.getElementById("winnerNewGame").style.display = "none";
+
+    soundBingo();
+    launchConfetti();
+    updateLeaderboard(name);
+    stopCountdown();
 
     if (role === "admin") {
         document.getElementById("callBtn").disabled = true;
@@ -2080,8 +2503,10 @@ function closeMobileSidebar() {
 function switchMobTab(tab) {
     document.getElementById("mobTabPlayers").classList.toggle("active", tab === "players");
     document.getElementById("mobTabChat").classList.toggle("active", tab === "chat");
+    document.getElementById("mobTabLeaderboard").classList.toggle("active", tab === "leaderboard");
     document.getElementById("mobPlayers").classList.toggle("active", tab === "players");
     document.getElementById("mobChat").classList.toggle("active", tab === "chat");
+    document.getElementById("mobLeaderboard").classList.toggle("active", tab === "leaderboard");
     if (tab === "chat") {
         chatUnread = 0;
         document.getElementById("chatNotif").style.display = "none";
