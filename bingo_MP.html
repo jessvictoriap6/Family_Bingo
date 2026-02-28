@@ -1503,10 +1503,7 @@ function adminStartGame() {
         config: { ...config },
         round: currentRound
     });
-
-    showScreen("game");
-    document.getElementById("adminBar").style.display = "flex";
-    setupGameUI();
+    // setupGameUI and showScreen handled in handleLocalMessage for game_start
 }
 
 function adminCallNumber() {
@@ -1847,6 +1844,18 @@ function handleLocalMessage(data) {
     }
     if (data.type === "resume") {
         document.getElementById("pauseOverlay").classList.remove("show");
+    }
+    if (data.type === "game_start") {
+        // Admin cards already set in adminStartGame — just refresh UI
+        showScreen("game");
+        document.getElementById("adminBar").style.display = "flex";
+        setupGameUI();
+    }
+    if (data.type === "round_start") {
+        // Admin cards already set in adminNextRound — just refresh UI
+        document.getElementById("nextRoundBtn").style.display = "none";
+        document.getElementById("callBtn").disabled = false;
+        setupGameUI();
     }
     if (data.type === "new_game") {
         // Admin handles new_game in startNewGame directly, skip local handling
